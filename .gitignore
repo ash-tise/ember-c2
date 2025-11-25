@@ -1,0 +1,11 @@
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.out
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
