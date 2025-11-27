@@ -6,6 +6,7 @@ type Beacon struct {
 	AgentID  string `json:"id"`
 	Hostname string `json:"host"`
 	OS       string `json:"os"`
+	Arch     string `json:"arch"`
 	Result   string `json:"r"`
 }
 
@@ -23,6 +24,7 @@ type AgentMetadata struct {
 	AgentID      string
 	Hostname     string
 	OS           string
+	Arch         string
 	LastCheckIn  time.Time
 	CommandQueue chan Command
 }

@@ -62,6 +62,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		AgentID:      initBeacon.AgentID,
 		Hostname:     initBeacon.Hostname,
 		OS:           initBeacon.OS,
+		Arch:         initBeacon.Arch,
 		LastCheckIn:  time.Now(),
 		CommandQueue: make(chan proto.Command, 10)}
 

