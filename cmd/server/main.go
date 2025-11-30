@@ -18,7 +18,6 @@ var activeAgents = make(map[string]*proto.AgentMetadata)
 var agentMutex sync.Mutex
 
 func initLogger() {
-
 	// create or append to logfile
 	logFile, err := os.OpenFile("ember.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -34,8 +33,10 @@ func initLogger() {
 	log.Println("Ember Logger Initialized. Writing to ember.log and Console.")
 }
 
-func handleRegister(w http.ResponseWriter, r *http.Request) {
+func initConsole() {
+}
 
+func handleRegister(w http.ResponseWriter, r *http.Request) {
 	// grab beacon info from agent
 	var initBeacon proto.Beacon
 	decoder := json.NewDecoder(r.Body)
@@ -44,7 +45,6 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
-
 	defer r.Body.Close()
 	log.Println("OPERATIONAL: Received registration attempt from Host:", initBeacon.Hostname)
 
@@ -66,7 +66,6 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		LastCheckIn:  time.Now(),
 		CommandQueue: make(chan proto.Command, 10)}
 
-	// add new agent to activeAgents map
 	agentMutex.Lock()
 	defer agentMutex.Unlock()
 	activeAgents[initBeacon.AgentID] = &newAgent
@@ -75,6 +74,17 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(initBeacon.AgentID))
 }
 
+func handleBeacon(w http.ResponseWriter, r *http.Request) {
+}
+
 func main() {
+	// initialize logger and console
 	initLogger()
+	go initConsole()
+
+	// initialize server
+	mux := http.NewServeMux()
+	mux.HandleFunc("/register", handleRegister)
+	mux.HandleFunc("/beacon", handleBeacon)
+	log.Fatal(http.ListenAndServeTLS("localhost:8443", "server.crt", "server.key", mux))
 }
