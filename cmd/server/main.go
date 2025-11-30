@@ -75,6 +75,30 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleBeacon(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func handleAgentList(w http.ResponseWriter, r *http.Request) {
+	// lock activeAgents map
+	agentMutex.Lock()
+	defer agentMutex.Unlock()
+
+	toReturn := make([]proto.AgentMetadata, len(activeAgents))
+
+	for _, val := range activeAgents {
+		toReturn = append(toReturn, *val)
+	}
+
+	// encode JSON and send back to client
+	data, err := json.Marshal(toReturn)
+	if err != nil {
+		log.Printf("INTERNAL ERROR: Unable to encode agent list into JSON: %v", err)
+		http.Error(w, "Service Unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func main() {
@@ -82,9 +106,10 @@ func main() {
 	initLogger()
 	go initConsole()
 
-	// initialize server
+	// initialize server and endpoints
 	mux := http.NewServeMux()
-	mux.HandleFunc("/register", handleRegister)
-	mux.HandleFunc("/beacon", handleBeacon)
+	mux.HandleFunc("/register", handleRegister)    // register a new agent
+	mux.HandleFunc("/beacon", handleBeacon)        // process agent beacons
+	mux.HandleFunc("/api/agents", handleAgentList) // return active agents in JSON format
 	log.Fatal(http.ListenAndServeTLS("localhost:8443", "server.crt", "server.key", mux))
 }
