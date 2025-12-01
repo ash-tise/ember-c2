@@ -75,7 +75,56 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleBeacon(w http.ResponseWriter, r *http.Request) {
+	// grab beacon data
+	var beacon proto.Beacon
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&beacon); err != nil {
+		log.Printf("ERROR: handleBeacon: Failed to decode Beacon JSON: %v", err)
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
+		return
+	}
 
+	// identify agent and update CheckIn timestamp
+	agentID := beacon.AgentID
+
+	agentMutex.Lock()
+	defer agentMutex.Unlock()
+
+	agent, ok := activeAgents[agentID]
+	if !ok {
+		http.Error(w, "Agent not found", http.StatusNotFound)
+	}
+	agent.LastCheckIn = time.Now()
+
+	var commandsToSend []proto.Command
+
+	// check for any commands in queue
+MainLoop:
+	for {
+		select {
+		case command := <-agent.CommandQueue:
+			commandsToSend = append(commandsToSend, command)
+		default:
+			break MainLoop
+		}
+	}
+
+	// send commands to agent
+	if len(commandsToSend) > 0 {
+		response := proto.Response{Commands: commandsToSend}
+		data, err := json.Marshal(&response)
+		if err != nil {
+			log.Printf("INTERNAL ERROR: Unable to encode command list of agent %s into JSON: %v", agentID, err)
+			http.Error(w, "Service Unavailable", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func handleAgentList(w http.ResponseWriter, r *http.Request) {
